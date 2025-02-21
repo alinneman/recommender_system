@@ -7,21 +7,7 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-    "numpy (>=2.2.3,<3.0.0)",
-    "pandas (>=2.2.3,<3.0.0)",
-    "ipykernel (>=6.29.5,<7.0.0)",
-    "requests (>=2.32.3,<3.0.0)",
-    "kagglehub (>=0.3.8,<0.4.0)",
-    "tqdm (>=4.67.1,<5.0.0)",
-    "ipywidgets (>=8.1.5,<9.0.0)",
-    "aicrowd-cli (>=0.1.16,<0.2.0)",
-    "pyarrow (>=19.0.0,<20.0.0)",
-    "sentence-transformers (>=3.4.1,<4.0.0)"
-]
-
-[tool.poetry]
-packages = [{include = "recommender_system", from = "src"}]
+dependencies = []
 
 
 [build-system]
