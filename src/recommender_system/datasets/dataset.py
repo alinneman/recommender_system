@@ -1,35 +1,59 @@
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-# Dataset with Price and Precomputed Embeddings
-class RecommenderDataset(Dataset):
-    def __init__(self, item_embeddings, prices, user_histories, pos_items, neg_items):
-        self.N_MOST_RECENT = 40
-        self.item_embeddings = item_embeddings
-        self.prices = torch.tensor(prices, dtype=torch.float32)
-        self.user_histories = user_histories
-        self.pos_items = pos_items
-        self.neg_items = neg_items
-    
+
+class SessionDataset(Dataset):
+    def __init__(self, sessions_df, item_df, pretrained_emb_dict, cat_emb_dict, pretrained_cols, cat_cols, max_session_length=40):
+        
+        self.sessions = sessions_df["prev_items"].tolist()
+        self.sessions = [sessions[1:-1].replace("'", '').split() for sessions in self.sessions]
+        self.next_items = sessions_df["next_item_id"].tolist()
+        self.items = item_df.set_index("item_id").to_dict(orient="index")
+
+        self.pretrained_cols = pretrained_cols
+        self.pretrained_emb_dict = pretrained_emb_dict
+
+        self.cat_cols = cat_cols
+        self.cat_embs = cat_emb_dict
+
+        self.max_session_length = max_session_length
+
+            
     def __len__(self):
-        return len(self.user_histories)
+        return len(self.data)
+    
+    def _get_pretrained_emb(self, item_id: str):
+        feature_embs = []
+        for pretrained_col in self.pretrained_cols:
+            col_val = self.items[item_id][pretrained_col]
+            feature_emb = self.pretrained_emb_dict[pretrained_col].get(col_val, np.zeros(384, dtype=np.int8))
+            feature_embs.append(torch.from_numpy(feature_emb))
+        return torch.stack(feature_embs, dim=0).to(torch.int8)
+    
+    def _get_cat_emb(self, item_id: str):
+        cat_vals = self.cat_embs[item_id]
+        cat_embs = [cat_vals[cat_col] for cat_col in self.cat_cols]
+        return torch.tensor(cat_embs, dtype=torch.int8)
     
     def __getitem__(self, idx):
-        user_hist = self.user_histories[idx]
-        pos_item = self.pos_items[idx]
-        neg_item = self.neg_items[idx]
-        user_price = self.prices[idx]
-        return torch.tensor(user_hist), torch.tensor(pos_item), torch.tensor(neg_item), user_price
-    
-    
+        prev_ids = self.sessions[idx]
+        target_id = self.next_items[idx]
+        
+        session_pre_embs = torch.stack([self._get_pretrained_emb(prev_id) for prev_id in prev_ids])
+        session_cat_embs = torch.stack([self._get_cat_emb(prev_id) for prev_id in prev_ids])
+        
+        target_pre_emb = self._get_pretrained_emb(target_id)
+        target_cat_emb = self._get_cat_emb(target_id)
+        
+        return session_pre_embs, session_cat_embs, target_pre_emb, target_cat_emb
+
     def collate_fn(self, batch):
-        user_histories, pos_items, neg_items, prices = zip(*batch)
-        padded_histories = []
-        for history in user_histories:
-            if len(history) >= self.N_MOST_RECENT:
-                padded_histories.append(history[-self.N_MOST_RECENT:])
-            else:
-                padded_histories.append(history + [0] * (self.N_MOST_RECENT - len(history)))
-        return torch.tensor(padded_histories), torch.tensor(pos_items), torch.tensor(neg_items), torch.tensor(prices).unsqueeze(1)
+        #pack padded sequence instead
+        session_pre_embs, session_cat_embs, target_pre_emb, target_cat_emb = batch
+        
+        return session_meta_batch, target_meta_batch
     
-    
+
+
+
